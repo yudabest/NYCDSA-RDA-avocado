@@ -14,10 +14,129 @@ When you save the notebook, an HTML file containing the code and output will be 
 The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
 
 ```{r}
+library(dplyr)
+library(ggplot2)
+library(ggthemes)
+library(lubridate)
+library(tidyr)
+library(tibbletime)
+library(cowplot)
+```
+
+
+```{r}
 # setwd("C:/Users/syd10/OneDrive/NYCDSA/04project/avocado")
 
-df <- read.csv("avocado.csv")
+df <- read.csv("avocado.csv", stringsAsFactors=T)
 original_df <- df
 ```
+
+```{r}
+levels(df$type)
+```
+
+```{r}
+ggplot(df, aes(x=AveragePrice, fill=type)) +
+  geom_density() +
+  facet_wrap(~type) +
+  theme_minimal() +
+  theme(plot.title=element_text(hjust=0.5), legend.position="bottom") +
+  labs(title="Avocado Price by Type") +
+  scale_fill_brewer(palette="Set3")
+```
+
+```{r}
+vol_type <- df %>%
+  group_by(type) %>%
+  summarise(avg.vol=mean(Total.Volume)) %>%
+  mutate(pct=prop.table(avg.vol) * 100) 
+
+vol_type
+```
+
+```{r}
+# Change the date column from factor to date
+df$Date <- as.Date(df$Date, "%Y-%m-%d")
+class(df$Date)
+
+# Sort the dates
+df <- df[order(df$Date),]
+
+price_trend <- df %>%
+  select(Date, AveragePrice, type) %>%
+  ggplot(aes(x=Date, y=AveragePrice)) +
+  geom_area(aes(color=type, fill=type), alpha = 0.3, position = position_dodge(0.8)) +
+  theme_minimal() +
+  scale_color_manual(values = c("#ED7921", "#62BE51")) +
+  scale_fill_manual(values = c("#FD833E", "#B8FC5F"))
+
+price_trend
+```
+
+```{r}
+# Create a Facet Wrap for each product
+ggplot(data = df, aes(x = Date, y = AveragePrice, col=type)) +
+  geom_line() +
+  facet_wrap(~ type) +
+  theme_minimal() +
+  theme(legend.position="bottom")
+```
+
+```{r}
+# Filter by type
+organic <- df %>% select(Date, AveragePrice, type, Total.Volume) %>%
+  filter(type == "organic")
+conventional <- df %>% select(Date, AveragePrice, type, Total.Volume) %>%
+  filter(type == "conventional")
+
+organic <- as_tbl_time(organic, index=Date)
+conventional <- as_tbl_time(conventional, index=Date)
+
+organic <- as_period(organic, '1 month')
+conventional <- as_period(conventional, '1 month')
+```
+
+```{r}
+# Now let's show monthly avocadoes price
+options(repr.plot.width=8, repr.plot.height=6)
+conventional_monthly <- conventional %>%
+ggplot(aes(x=Date, y=AveragePrice)) + geom_line(color="#7FB3D5") + theme_economist() + 
+theme(plot.title=element_text(hjust=0.5), plot.background=element_rect(fill="#D5D8DC")) + 
+labs(title="Conventional Avocados") + geom_hline(yintercept=max(conventional$AveragePrice), linetype="dashed", color = "red") + 
+geom_hline(yintercept=min(conventional$AveragePrice), linetype="dashed", color = "blue")
+
+# Let's create a volume chart
+conventional_volume <- conventional %>%
+ggplot(aes(x=Date, y=Total.Volume)) + geom_bar(stat='identity', fill="#7FB3D5", color="black") + theme_economist() + 
+theme(plot.title=element_text(hjust=0.5), plot.background=element_rect(fill="#D5D8DC")) + 
+geom_smooth(method="loess", color="red")
+
+organic_monthly <- organic %>% 
+ggplot(aes(x=Date, y=AveragePrice)) + geom_line(color="#58D68D") + theme_economist() + 
+theme(plot.title=element_text(hjust=0.5), plot.background=element_rect(fill="#D5D8DC")) + 
+labs(title="Organic Avocados") + geom_hline(yintercept=max(organic$AveragePrice), linetype="dashed", color = "red") + 
+geom_hline(yintercept=min(organic$AveragePrice), linetype="dashed", color = "blue")
+
+organic_volume <- organic %>%
+ggplot(aes(x=Date, y=Total.Volume)) + geom_bar(stat='identity', fill="#58D68D",color="black") + theme_economist() + 
+theme(plot.title=element_text(hjust=0.5), plot.background=element_rect(fill="#D5D8DC")) + geom_smooth(method="loess", color="red")
+
+plot_grid(conventional_monthly, organic_monthly,conventional_volume, organic_volume, nrow=2, ncol=2)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
